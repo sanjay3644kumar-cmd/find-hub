@@ -49,9 +49,9 @@ a.map{display:inline-block;margin-top:8px;padding:10px 16px;border-radius:12px;b
   <input id="ph" type="tel" inputmode="numeric" placeholder="10-digit mobile number" maxlength="10">
   <div id="otpBox" class="hide">
     <div class="toast">OTP sent by SMS to your number 📩</div>
-    <input id="otp" inputmode="numeric" placeholder="Enter 4-digit OTP" maxlength="4">
+    <input id="otp" inputmode="numeric" placeholder="Enter 6-digit OTP" maxlength="6">
   </div>
-  <button class="full" id="loginBtn">Login</button>
+  <button class="full" id="loginBtn">Send OTP</button>
 </section>
 
 <section id="app" class="hide">
@@ -72,13 +72,14 @@ a.map{display:inline-block;margin-top:8px;padding:10px 16px;border-radius:12px;b
 
 <script type="module">
 import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {getAuth,RecaptchaVerifier,signInWithPhoneNumber,onAuthStateChanged,signOut} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {getFirestore,doc,setDoc,updateDoc,deleteDoc,collection,query,where,or,onSnapshot} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const cfg={apiKey:"AIzaSyAqIDw1eVh2k2FW7JWEdMFFMR894I4vzLo",authDomain:"msk-hub.firebaseapp.com",projectId:"msk-hub",storageBucket:"msk-hub.firebasestorage.app",messagingSenderId:"611782703690",appId:"1:611782703690:web:b154754eae283ff5b4c4b3"};
 
-const app=initializeApp(cfg),db=getFirestore(app);
+const app=initializeApp(cfg),auth=getAuth(app),db=getFirestore(app);
 const $=i=>document.getElementById(i);
-let me=null,reqs=[],locs={},alerts={},watchId=null,myPos=null,sosOn=false;const subs={};
+let me=null,reqs=[],locs={},alerts={},watchId=null,myPos=null,sosOn=false,confirmation=null,verifier=null;const subs={};
 const batt={l:null,c:false};
 try{navigator.getBattery().then(b=>{const u=()=>{batt.l=Math.round(b.level*100);batt.c=b.charging};u();b.onlevelchange=u;b.onchargingchange=u})}catch(e){}
 function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
@@ -86,13 +87,19 @@ function dist(l){if(!myPos)return l.lat.toFixed(4)+', '+l.lng.toFixed(4);var R=6
 function ago(t){var s=Math.max(0,Math.round((Date.now()-t)/1000));return s<60?s+'s ago':s<3600?Math.floor(s/60)+' min ago':s<86400?Math.floor(s/3600)+' h ago':Math.floor(s/86400)+' d ago'}
 function bat(l){if(l.bat==null)return '';return '<div class="m" style="margin-top:4px">'+(l.chg?'⚡':'🔋')+' '+l.bat+'%'+(l.chg?' · charging':'')+'</div>'}
 function av(n){return '<div class="av">'+esc(n.slice(-2))+'</div>'}
-$('loginBtn').onclick=()=>{
-  const p=$('ph').value.replace(/\D/g,'');
-  if(p.length!==10){alert('Enter a 10-digit number');return}
-  me='+91'+p;try{localStorage.setItem('fh_me',me)}catch(e){}start();
+$('loginBtn').onclick=async()=>{
+  try{
+    if(!confirmation){
+      const p=$('ph').value.replace(/\D/g,'');
+      if(p.length!==10){alert('Enter a 10-digit number');return}
+      if(!verifier)verifier=new RecaptchaVerifier(auth,'loginBtn',{size:'invisible'});
+      confirmation=await signInWithPhoneNumber(auth,'+91'+p,verifier);
+      $('otpBox').classList.remove('hide');$('loginBtn').textContent='Verify & Login';return}
+    await confirmation.confirm($('otp').value);
+  }catch(e){alert('Login failed: '+(e.code||e.message));confirmation=null;$('loginBtn').textContent='Send OTP'}
 };
-$('out').onclick=async()=>{await stopShare();try{localStorage.removeItem('fh_me')}catch(e){}location.reload()};
-try{const saved=localStorage.getItem('fh_me');if(saved){me=saved;start()}}catch(e){}
+$('out').onclick=async()=>{await stopShare();await signOut(auth);location.reload()};
+onAuthStateChanged(auth,u=>{if(u&&u.phoneNumber){me=u.phoneNumber;start()}});
 
 function start(){
   $('login').classList.add('hide');$('app').classList.remove('hide');$('me').textContent=me;$('mav').textContent=me.slice(-2);
