@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Find Hub</title>
+<title>MSK Hub</title>
+<link rel="manifest" href="manifest.json"><meta name="theme-color" content="#5b4bff"><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -17,7 +18,7 @@ main{max-width:480px;margin:0 auto;padding:16px 16px 40px}
 .radar{position:absolute;right:-30px;top:-30px;width:190px;height:190px}
 .radar i{position:absolute;inset:0;margin:auto;border:2px solid rgba(255,255,255,.55);border-radius:50%;animation:rp 3s infinite;opacity:0}
 .radar i:nth-child(2){animation-delay:1s}.radar i:nth-child(3){animation-delay:2s}
-.radar b{position:absolute;inset:0;margin:auto;width:46px;height:46px;border-radius:50%;background:#fff;display:grid;place-items:center;font-size:22px;box-shadow:0 6px 18px rgba(0,0,0,.25)}
+.radar b{position:absolute;inset:0;margin:auto;width:66px;height:66px;border-radius:50%;background:#fff;display:grid;place-items:center;font-size:19px;font-weight:800;letter-spacing:.5px;color:#5b4bff;box-shadow:0 6px 18px rgba(0,0,0,.25)}
 @keyframes rp{0%{transform:scale(.25);opacity:.9}100%{transform:scale(1);opacity:0}}
 .card{background:var(--card);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid var(--bd);border-radius:20px;padding:16px;margin-top:12px;box-shadow:var(--sh)}
 h2{font-size:13px;font-weight:700;margin:26px 4px 2px;color:var(--mut);text-transform:uppercase;letter-spacing:.09em}
@@ -40,8 +41,8 @@ a.map{display:inline-block;margin-top:8px;padding:10px 16px;border-radius:12px;b
 .toast{margin-top:10px;padding:12px 14px;border-radius:14px;background:rgba(0,194,255,.14);font-size:13px;font-weight:500}
 .empty{text-align:center;color:var(--mut);font-size:14px;padding:18px 0}
 </style></head><body><main>
-<div class="hero"><div class="radar"><i></i><i></i><i></i><b>📍</b></div>
-<h1>Find Hub</h1><p>Live location sharing with the people you trust.</p></div>
+<div class="hero"><div class="radar"><i></i><i></i><i></i><b>MSK</b></div>
+<h1>MSK Hub</h1><p>Live location sharing with the people you trust.</p><p style="margin-top:12px;font-size:12px;font-weight:600;opacity:.85">Made by Sanjay</p></div>
 
 <div id="sos"></div>
 <section id="login" class="card">
@@ -103,7 +104,7 @@ onAuthStateChanged(auth,u=>{if(u&&u.phoneNumber){me=u.phoneNumber;start()}});
 
 function start(){
   $('login').classList.add('hide');$('app').classList.remove('hide');$('me').textContent=me;$('mav').textContent=me.slice(-2);
-  if(navigator.geolocation)navigator.geolocation.watchPosition(p=>{myPos={lat:p.coords.latitude,lng:p.coords.longitude}},()=>{});
+  if(navigator.geolocation)navigator.geolocation.watchPosition(p=>{if(p.coords.accuracy<=200)myPos={lat:p.coords.latitude,lng:p.coords.longitude}},()=>{},{enableHighAccuracy:true,maximumAge:0});
   onSnapshot(query(collection(db,'requests'),or(where('from','==',me),where('to','==',me))),s=>{
     reqs=s.docs.map(d=>d.data());
     reqs.filter(r=>r.from===me&&(r.status==='accepted'||r.status==='stopped')).forEach(r=>watch(r.to));
@@ -129,9 +130,10 @@ async function answer(from,st,mins){
 function startShare(){
   if(watchId!==null||!navigator.geolocation)return;
   watchId=navigator.geolocation.watchPosition(p=>{
-    setDoc(doc(db,'loc',me),{lat:p.coords.latitude,lng:p.coords.longitude,ts:Date.now(),live:true,bat:batt.l,chg:batt.c}).catch(()=>{});
+    if(p.coords.accuracy>200){$('mystate').textContent='Getting an accurate location...';return}
+    setDoc(doc(db,'loc',me),{lat:p.coords.latitude,lng:p.coords.longitude,acc:Math.round(p.coords.accuracy),ts:Date.now(),live:true,bat:batt.l,chg:batt.c}).catch(()=>{});
     $('mystate').innerHTML='<span class="live"></span>Sharing your live location';$('stop').classList.remove('hide');
-  },()=>{$('mystate').textContent='Location permission denied'},{enableHighAccuracy:true});
+  },()=>{$('mystate').textContent='Location permission denied'},{enableHighAccuracy:true,maximumAge:0,timeout:30000});
 }
 async function stopShare(){
   if(watchId!==null){navigator.geolocation.clearWatch(watchId);watchId=null}
@@ -155,7 +157,7 @@ function render(){
   var sh=reqs.filter(function(r){return r.from===me&&r.status!=='declined'});
   $('sharing').innerHTML=sh.length?sh.map(function(r){
     var l=locs[r.to],ok=l&&(r.status==='accepted'||r.status==='stopped'),body;
-    if(ok){body='<div class="big">'+(l.live?'<span class="live"></span>':'🕓 ')+dist(l)+'</div><div class="m">'+(l.live?'Updated ':'Last seen ')+ago(l.ts)+'</div>'+bat(l)+'<a class="map" target="_blank" rel="noopener" href="https://www.google.com/maps?q='+l.lat+','+l.lng+'">🗺️ Open on map</a>'}
+    if(ok){body='<div class="big">'+(l.live?'<span class="live"></span>':'🕓 ')+dist(l)+'</div><div class="m">'+(l.live?'Updated ':'Last seen ')+ago(l.ts)+(l.acc?' · accuracy ±'+l.acc+' m':'')+'</div>'+bat(l)+'<a class="map" target="_blank" rel="noopener" href="https://www.google.com/maps?q='+l.lat+','+l.lng+'">🗺️ Open on map</a>'}
     else{body='<div class="m" style="margin-top:8px">'+(r.status==='pending'?'Waiting for them to accept…':r.status==='stopped'?'They stopped sharing':'Waiting for location…')+'</div>'}
     return '<div class="card"><div class="row"><div class="who">'+av(r.to)+'<div class="t">'+esc(r.to)+'</div></div><span class="pill '+esc(r.status)+'">'+esc(r.status)+'</span></div>'+body+'</div>'}).join(''):'<div class="card empty">Nobody yet. Send a request above</div>';
 }
@@ -163,4 +165,5 @@ document.addEventListener('click',function(e){var b=e.target.closest('[data-a]')
 
 document.addEventListener('click',e=>{const b=e.target.closest('[data-a]');if(b){const s=b.parentNode.querySelector('.dur');answer(b.dataset.f,b.dataset.a,s?+s.value:0)}});
 setInterval(render,5000);
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 </script></main></body></html>
